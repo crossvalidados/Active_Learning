@@ -21,6 +21,7 @@ from sklearn.metrics import accuracy_score
 #from al_base import ao
 from sklearn.cluster import KMeans
 from random import randint
+from sklearn.utils import resample
 import random
 random.seed(31415926535)
 
@@ -111,6 +112,47 @@ def SSC(model, X_U, already_selected, N):
 
     return active_samples
 
+def nEQB(model, X_U, already_selected, N):
+
+    # Definimos el número de modelos a usar
+    n_models = 4
+    n_classes = len(np.unique(y_L))
+
+    distances = []
+
+    # Creamos la matriz de predicciones
+    n_unlab = X_U.shape[0]
+    predMatrix = np.zeros((n_unlab, n_classes))
+
+    # Rellenamos la matriz de predicciones creando muestras bagging con reeemplazamiento.
+    for k in range(n_models):
+        while True:
+            xbag, ybag = resample(X_L, y_L, replace = True)
+
+            # Ensure that we have all classes in the bootstrap replica
+            if len(np.unique(ybag)) >= n_classes:
+                break
+        # Ajustamos el modelo
+        model.fit(xbag, ybag)
+
+        # Rellenamos la matriz de predicciones por filas, sumando las probabilidades tantas veces como modelos haya.
+        predMatrix += model.predict_proba(X_U)
+
+    # Normalize probabilities with the number of used models
+    predMatrix /= n_models
+
+    # We already have normalized probabilites, we can compute entropies!
+    Hbag = -np.sum(predMatrix * np.log(predMatrix), axis=1)
+
+    # Select randomly among the ones with maximum entropy.
+    idx = np.argsort(Hbag)[::-1]
+
+    # Comprobamos que no estén ya presentes en la muestra seleccionada.
+    rank_ind = [i for i in idx if i not in already_selected]
+    active_samples = rank_ind[0:N]
+
+    return active_samples
+
 def random_sampling(model, X_U, already_selected, N):
 
     not_selected = []
@@ -171,7 +213,7 @@ for i in range(M):
 M = 30 # numero iteraciones. Se acaba con M*n_diver muestras etiquetadas
 n_al = 30 # numero de muestras activa que se seleccionan en cada iteracion
 n_diver = 10 # numero de muestras que se selecionan de las muestras activas a traves de un criterio de diversidad para cada iteracion
-sampling_methods = [MS, MCLU, SSC]
+sampling_methods = [MS, MCLU, SSC, nEQB]
 diversity_methods = [diversity_clustering]
 acc = np.empty((len(sampling_methods)*len(diversity_methods),M))
 
@@ -208,7 +250,7 @@ for j in range(len(sampling_methods)):
 
 
 # Graficas (naranja es random)
-al = ["MS"]*len(diversity_methods) + ["MCLU"]*len(diversity_methods) + ["SSC"]*len(diversity_methods)
+al = ["MS"]*len(diversity_methods) + ["MCLU"]*len(diversity_methods) + ["SSC"]*len(diversity_methods) + ["nEQB"]*len(diversity_methods)
 diversity = ["Diversity Clustering"]*len(sampling_methods)
 x = np.arange(M*n_diver, step = 10)
 
