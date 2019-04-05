@@ -48,17 +48,22 @@ y_U = U.iloc[:,0]
 
 already_selected = []
 # El modelo sera SVC (un clasificador usando support vector machines)
-model = SVC(gamma = 'auto', probability=True)
+model = SVC(gamma = 'auto', probability=True, decision_function_shape = "ovr")
 
 
 def MS(model, X_U, already_selected, N):
+
     distances = []
+
+    # Para todas las distancias a todos los hiperplanos calculamos la media.
     for i in model.decision_function(X_U):
         distances.append(np.linalg.norm(i))
+
     distances = np.array(distances)
     rank_ind = np.argsort(distances)
     rank_ind = [i for i in rank_ind if i not in already_selected]
     active_samples = rank_ind[0:N]
+
     return active_samples
 
 def MCLU(model, X_U, already_selected, N):
@@ -125,9 +130,6 @@ for i in range(M):
     L = L.append(U.iloc[active_samples,])
     X_L = L.iloc[:,1:]
     y_L = L.iloc[:,0]
-
-len(already_selected)
-len(np.unique(already_selected))
 
 # In[14]:
 
