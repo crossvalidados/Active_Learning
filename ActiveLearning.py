@@ -67,12 +67,21 @@ def MS(model, X_U, already_selected, N):
     return active_samples
 
 def MCLU(model, X_U, already_selected, N):
-    distances = model.predict_proba(X_U)
-    sort_distances = np.sort(distances, 1)[:, -2:]
-    min_margin = sort_distances[:, 1] - sort_distances[:, 0]
+
+    # Definimos las distancias a cada hiperplano
+    distances = abs(model.decision_function(X_U))
+
+    # Ordenamos las distancias de menor a mayor
+    sort_distances = np.sort(distances, 1)
+
+    # Obtenemos la diferencia entre las distancias de las dos clases más probables (mayores distancias)
+    min_margin = sort_distances[:, -1] - sort_distances[:, -2]
+
+    # Ordenamos las muestras no etiquetadas por ese margen mínimo obtenido.
     rank_ind = np.argsort(min_margin)
     rank_ind = [i for i in rank_ind if i not in already_selected]
     active_samples = rank_ind[0:N]
+
     return active_samples
 
 def SSC(model, X_U, already_selected, N):
