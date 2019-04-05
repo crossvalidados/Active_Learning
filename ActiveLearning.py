@@ -86,7 +86,30 @@ def MCLU(model, X_U, already_selected, N):
 
 def SSC(model, X_U, already_selected, N):
 
-    pass
+    distances = []
+
+    # Creamos los conjuntos de train para predecir los vectores soporte.
+    X_L_ssc = X_L
+    y_L_ssc = np.zeros(y_L.shape)
+    y_L_ssc[model.support_] = 1
+
+    # Si solo hay una clase no es necesaria ninguna predicción.
+    if len(np.unique(y_L_ssc)) == 1:
+        idx = np.random.permutation(X_U.shape[0])
+
+    # Si no es el caso, creamos el modelo y predecimos cuales de las muestras sin etiquetar serán vectores soporte.
+    else:
+        model.fit(X_L_ssc, y_L_ssc)
+        possible_SVs = model.predict(X_U)
+        idx = np.arange(X_U.shape[0])[possible_SVs == 1]
+
+    # Comprobamos que no estén ya presentes en la muestra seleccionada.
+    rank_ind = [i for i in idx if i not in already_selected]
+
+    rank_ind = np.random.permutation(rank_ind)
+    active_samples = rank_ind[0:N]
+
+    return active_samples
 
 def random_sampling(model, X_U, already_selected, N):
 
@@ -148,7 +171,7 @@ for i in range(M):
 M = 30 # numero iteraciones. Se acaba con M*n_diver muestras etiquetadas
 n_al = 30 # numero de muestras activa que se seleccionan en cada iteracion
 n_diver = 10 # numero de muestras que se selecionan de las muestras activas a traves de un criterio de diversidad para cada iteracion
-sampling_methods = [MS, MCLU]
+sampling_methods = [MS, MCLU, SSC]
 diversity_methods = [diversity_clustering]
 acc = np.empty((len(sampling_methods)*len(diversity_methods),M))
 
@@ -185,7 +208,7 @@ for j in range(len(sampling_methods)):
 
 
 # Graficas (naranja es random)
-al = ["MS"]*len(diversity_methods) + ["MCLU"]*len(diversity_methods)
+al = ["MS"]*len(diversity_methods) + ["MCLU"]*len(diversity_methods) + ["SSC"]*len(diversity_methods)
 diversity = ["Diversity Clustering"]*len(sampling_methods)
 x = np.arange(M*n_diver, step = 10)
 
