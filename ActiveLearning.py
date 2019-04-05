@@ -2,13 +2,13 @@
 # coding: utf-8
 
 # # Trabajo de aprendizaje activo
-#
+# 
 # Manuel Bajo Buenestado y Kevin Craig Alisauskas
-#
+# 
 # 03-03-2019
-#
-#
-#
+# 
+# 
+# 
 
 # In[1]:
 
@@ -74,17 +74,15 @@ def SSC(model, X_U, already_selected, N):
 
     pass
 
-def random_sampling(model, X_U, already_selected, N):
-
+def random_sampling(model, X_U, already_selected, N):    
     not_selected = []
     random_samples = []
     for i in range(U.shape[0]):
         if [i in already_selected] == [False]:
             not_selected = not_selected + [i]
-
-    random_samples = np.random.permutation(not_selected)[0:N].tolist()
+    for i in range(N):
+        random_samples = random_samples + [randint(0, len(not_selected))]
     return random_samples
-
 
 def diversity_clustering(X_U, active_samples, n):
     kmeans = KMeans(n_clusters=n).fit(X_U.iloc[active_samples])
@@ -96,7 +94,7 @@ def diversity_clustering(X_U, active_samples, n):
             if (labels[j] == i) :
                 diversity_samples = diversity_samples + [active_samples[j]]
                 break
-
+    
     return diversity_samples
 
 
@@ -126,8 +124,6 @@ for i in range(M):
     X_L = L.iloc[:,1:]
     y_L = L.iloc[:,0]
 
-len(already_selected)
-len(np.unique(already_selected))
 
 # In[14]:
 
@@ -165,9 +161,9 @@ for j in range(len(sampling_methods)):
             L = L.append(U.iloc[active_samples,])
             X_L = L.iloc[:,1:]
             y_L = L.iloc[:,0]
-
+        
     acc[j,:] = np.array(accuracy)
-
+    
 
 
 # In[15]:
@@ -200,3 +196,4 @@ not_support = [i for i in list(range(X_L.shape[0])) if i not in model.support_]
 np.array(X_U)[not_selected]
 np.array(X_L)[model.support_]
 not_support
+
