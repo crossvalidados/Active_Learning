@@ -165,7 +165,7 @@ def random_sampling(model, X_U, already_selected, N):
     return random_samples
 
 
-def diversity_clustering(X_U, active_samples, n):
+def diversity_clustering(X_U, X_L, active_samples, n):
     kmeans = KMeans(n_clusters=n).fit(X_U.iloc[active_samples])
     labels = kmeans.labels_
     diversity_samples = []
@@ -178,6 +178,22 @@ def diversity_clustering(X_U, active_samples, n):
 
     return diversity_samples
 
+def MAO(X_U, X_L, active_samples, n):
+
+    distances = []
+    diversity_samples = []
+    active = np.array(X_U.iloc[active_samples])
+    labeled = np.array(X_L)
+    for i in active:
+        d = np.sqrt(np.sum((labeled-i)**2, axis=1))
+        d = d.max()
+        distances.append(d)
+
+    distances = np.array(distances)
+    idx = distances.argsort()
+    diversity_samples = list(np.array(active_samples)[idx][:n])
+
+    return diversity_samples
 
 #### https://github.com/google/active-learning/tree/master/sampling_methods
 
@@ -214,8 +230,9 @@ M = 30 # numero iteraciones. Se acaba con M*n_diver muestras etiquetadas
 n_al = 30 # numero de muestras activa que se seleccionan en cada iteracion
 n_diver = 10 # numero de muestras que se selecionan de las muestras activas a traves de un criterio de diversidad para cada iteracion
 sampling_methods = [MS, MCLU, SSC, nEQB]
-diversity_methods = [diversity_clustering]
+diversity_methods = [diversity_clustering, MAO]
 acc = np.empty((len(sampling_methods)*len(diversity_methods),M))
+idx = 0
 
 for j in range(len(sampling_methods)):
     for k in range(len(diversity_methods)):
@@ -233,7 +250,7 @@ for j in range(len(sampling_methods)):
             accuracy = accuracy + [accuracy_score(y_pred, y_test)]
 
             active_samples = sampling_methods[j](model, X_U, already_selected, n_al)
-            active_samples = diversity_methods[k](X_U, active_samples, n_diver)
+            active_samples = diversity_methods[k](X_U, X_L, active_samples, n_diver)
 
 
             already_selected = already_selected + active_samples
@@ -241,8 +258,10 @@ for j in range(len(sampling_methods)):
             L = L.append(U.iloc[active_samples,])
             X_L = L.iloc[:,1:]
             y_L = L.iloc[:,0]
-
-    acc[j,:] = np.array(accuracy)
+            
+        acc[idx,:] = np.array(accuracy)
+        idx = idx + 1
+    
 
 
 
@@ -251,14 +270,14 @@ for j in range(len(sampling_methods)):
 
 # Graficas (naranja es random)
 al = ["MS"]*len(diversity_methods) + ["MCLU"]*len(diversity_methods) + ["SSC"]*len(diversity_methods) + ["nEQB"]*len(diversity_methods)
-diversity = ["Diversity Clustering"]*len(sampling_methods)
+diversity = ["Diversity Clustering", "MAO"]*len(sampling_methods)
 x = np.arange(M*n_diver, step = 10)
 
 for i in range(acc.shape[0]):
     plt.figure(i)
     plt.plot(x, acc[i,:], "r")
     plt.plot(x, random_accuracy, ".--", color = "#AC8798")
-    plt.title(al[i])
+    plt.title(al[i] + " + " + diversity[i])
     plt.legend(("AL + Diversity","Random"))
     plt.ylabel("Accuracy")
     plt.xlabel("Number of instances queries")
