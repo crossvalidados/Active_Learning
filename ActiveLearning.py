@@ -135,7 +135,7 @@ def nEQB(model, X_U, already_selected, N):
         # Ajustamos el modelo
         model.fit(xbag, ybag)
 
-        # Rellenamos la matriz de predicciones por filas, sumando las probabilidades tantas veces como modelos haya.
+        # Rellenamos la matriz de predicciones sumando las probabilidades tantas veces como modelos haya.
         predMatrix += model.predict_proba(X_U)
 
     # Normalize probabilities with the number of used models
