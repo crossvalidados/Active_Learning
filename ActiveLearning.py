@@ -5,7 +5,7 @@
 #
 # Manuel Bajo Buenestado y Kevin Craig Alisauskas
 #
-# 03-03-2019
+# 08-04-2019
 #
 #
 #
@@ -359,8 +359,10 @@ al = ["MS"]*len(diversity_methods) + ["MCLU"]*len(diversity_methods) + ["SSC"]*l
 diversity = ["Diversity Clustering", "MAO", "MAO_lam"]*len(sampling_methods)
 x = np.arange(M*n_diver, step = 10)
 
+fig = plt.figure(figsize= (30 , 24))
+
 for i in range(acc.shape[0]):
-    plt.figure(i)
+    fig.add_subplot(4, 3, i + 1)
     plt.plot(x, acc[i,:], "r")
     plt.plot(x, random_accuracy, ".--", color = "#AC8798")
     plt.title(al[i] + " + " + diversity[i])
@@ -368,3 +370,5 @@ for i in range(acc.shape[0]):
     plt.ylabel("Accuracy")
     plt.xlabel("Number of instances queries")
     plt.show
+
+plt.savefig('resultados.png')
