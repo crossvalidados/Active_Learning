@@ -22,6 +22,8 @@ from sklearn.metrics import accuracy_score
 from sklearn.cluster import KMeans
 from random import randint
 from sklearn.utils import resample
+from sklearn.metrics.pairwise import rbf_kernel
+from scipy.spatial.distance import pdist
 import random
 random.seed(31415926535)
 
@@ -48,8 +50,13 @@ y_U = U.iloc[:,0]
 
 
 already_selected = []
+
+# Definimos la gamma en función de las muestras etiquetadas.
+sigma = np.mean(pdist(X_L))
+gamma = 1 / (2 * sigma * sigma)
+
 # El modelo sera SVC (un clasificador usando support vector machines)
-model = SVC(gamma = 'auto', probability=True, decision_function_shape = "ovr")
+model = SVC(gamma = gamma, C = 100, probability=True, decision_function_shape = "ovr")
 
 
 def MS(model, X_U, already_selected, N):
@@ -182,18 +189,34 @@ def MAO(X_U, X_L, active_samples, n):
 
     distances = []
     diversity_samples = []
-    active = np.array(X_U.iloc[active_samples])
+    active = np.array(active_samples)
     labeled = np.array(X_L)
-    for i in active:
-        d = np.sqrt(np.sum((labeled-i)**2, axis=1))
-        d = d.max()
-        distances.append(d)
 
-    distances = np.array(distances)
-    idx = distances.argsort()
-    diversity_samples = list(np.array(active_samples)[idx][:n])
+    # Usamos un kernel gaussiano para calcular distancias entre las 30 muestras preseleccionadas
+    K = rbf_kernel(X_U, gamma = gamma)
 
-    return diversity_samples
+    # Creamos un vector vacío para las posiciones de X_U finales a seleccionar como activas.
+    mao_samples = np.zeros(n, dtype=type(active[0]))
+
+    # Rellenamos el vector.
+    for i in range(n):
+        i = 0
+        # La primera muestra se toma como activa automáticamente, y de ahí comparamos con el resto.
+        mao_samples[i] = active[0]
+        active = active[1:]
+
+        # Obtenemos las distancias de las muestras seleccionadas con las preseleccionadas
+        Kdist = K[mao_samples[0:i+1], :][:, active]
+
+        # Distancia mínima de cada muestra preseleccionada con alguna de las seleccionadas.
+        Kdist = Kdist.min(axis = 0)
+
+        # Remuestreamos ordenando por distancias.
+        active = active[Kdist.argsort(axis = 0)]
+
+    mao_samples = mao_samples.tolist()
+
+    return mao_samples
 
 #### https://github.com/google/active-learning/tree/master/sampling_methods
 
@@ -258,10 +281,10 @@ for j in range(len(sampling_methods)):
             L = L.append(U.iloc[active_samples,])
             X_L = L.iloc[:,1:]
             y_L = L.iloc[:,0]
-            
+
         acc[idx,:] = np.array(accuracy)
         idx = idx + 1
-    
+
 
 
 
