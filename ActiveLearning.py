@@ -32,21 +32,23 @@ random.seed(31415926535)
 
 
 # se cargan los datos
-U = pd.read_csv("./Datos/semeion_unlabeled.csv", header = None)
-test = pd.read_csv("./Datos/semeion_test.csv", header = None)
 
-# test
+# Unlabeled
+U = pd.read_csv("./Datos/semeion_unlabeled.csv", header = None)
+X_U = U.iloc[:,1:]
+y_U = U.iloc[:,0]
+
+# Test
+test = pd.read_csv("./Datos/semeion_test.csv", header = None)
 X_test = test.iloc[:,1:]
 y_test = test.iloc[:,0]
 
-# labeled
+# Labeled
 L = pd.read_csv("./Datos/semeion_labeled.csv", header = None)
 X_L = L.iloc[:,1:]
 y_L = L.iloc[:,0]
 
-# unlabeled
-X_U = U.iloc[:,1:]
-y_U = U.iloc[:,0]
+
 
 
 already_selected = []
@@ -162,13 +164,19 @@ def nEQB(model, X_U, already_selected, N):
 
 def random_sampling(model, X_U, already_selected, N):
 
+    # Inicializamos las muestras no seleccionadas y las muestras aleatorias que usaremos al final.
     not_selected = []
     random_samples = []
+
+    # Rellenamos las muestras no seleccionadas.
     for i in range(U.shape[0]):
+
         if [i in already_selected] == [False]:
             not_selected = not_selected + [i]
 
+    # Realizamos una permutación aleatoria de las muestras "unlabeled" que no estuvieran seleccionadas anteriormente y devolvemos las N primeras.
     random_samples = np.random.permutation(not_selected)[0:N].tolist()
+
     return random_samples
 
 
@@ -227,20 +235,28 @@ def MAO(X_U, X_L, active_samples, n):
 ### comenzamos con random sampling, que usaremos para comparar el resto de metodos
 M = 30 # numero iteraciones. Se acaba con M*10 muestras etiquetadas
 random_accuracy = []
-L = pd.read_csv("./Datos/semeion_labeled.csv", header = None)
-X_L = L.iloc[:,1:]
-y_L = L.iloc[:,0]
+already_selected = []
 
 for i in range(M):
+
+    # Ajustamos el modelo con los datos etiquetados de train
     model.fit(X_L, y_L)
 
+    # Predecimos para los datos test
     y_pred = model.predict(X_test)
 
+    # Evaluamos el acierto.
     random_accuracy = random_accuracy + [accuracy_score(y_pred, y_test)]
+
+    # Seleccionamos las nuevas muestras activas con la función random_sampling de forma aleatoria.
     active_samples = random_sampling(model, X_U, already_selected, 10)
+
+    # Guardamos las muestras nuevas activas como seleccionadas.
     already_selected = already_selected + active_samples
 
-    L = L.append(U.iloc[active_samples,])
+    # Añadimos las nuevas muestras labeled al conjunto original.
+    L = L.append(U.iloc[active_samples, :])
+
     X_L = L.iloc[:,1:]
     y_L = L.iloc[:,0]
 
@@ -254,35 +270,48 @@ n_al = 30 # numero de muestras activa que se seleccionan en cada iteracion
 n_diver = 10 # numero de muestras que se selecionan de las muestras activas a traves de un criterio de diversidad para cada iteracion
 sampling_methods = [MS, MCLU, SSC, nEQB]
 diversity_methods = [diversity_clustering, MAO]
-acc = np.empty((len(sampling_methods)*len(diversity_methods),M))
+acc = np.empty((len(sampling_methods)*len(diversity_methods), M))
 idx = 0
 
 for j in range(len(sampling_methods)):
     for k in range(len(diversity_methods)):
+
+        # Definimos un vector de aciertos y otro de las muestras ya escogidas para cada combinación de métodos.
         accuracy = []
         already_selected = []
-        L = pd.read_csv("./Datos/semeion_labeled.csv", header = None)
-        X_L = L.iloc[:,1:]
-        y_L = L.iloc[:,0]
 
+        # Cargamos de nuevo el conjunto Labeled.
+        L = pd.read_csv("./Datos/semeion_labeled.csv", header = None)
+        X_L = L.iloc[:, 1:]
+        y_L = L.iloc[:, 0]
+
+        # Realizamos las M iteraciones para cada combinación de métodos..
         for i in range(M):
+
+            # Ajustamos el modelo.
             model.fit(X_L, y_L)
 
+            # Predecimos con test.
             y_pred = model.predict(X_test)
 
+            # Obtenemos y almacenamos el acierto para cada combinación.
             accuracy = accuracy + [accuracy_score(y_pred, y_test)]
 
+            # Obtenemos las muestras activas previas a partir de un determinado método de selección.
             active_samples = sampling_methods[j](model, X_U, already_selected, n_al)
+
+            # Obtenemos las muestras finales a partir de un determinado método de diversidad.
             active_samples = diversity_methods[k](X_U, X_L, active_samples, n_diver)
 
-
+            # Almacenamos esas muestras activas finales.
             already_selected = already_selected + active_samples
 
-            L = L.append(U.iloc[active_samples,])
-            X_L = L.iloc[:,1:]
-            y_L = L.iloc[:,0]
+            # Añadimos esas muestras a nuestro conjunto de muestras etiquetadas.
+            L = L.append(U.iloc[active_samples, :])
+            X_L = L.iloc[:, 1:]
+            y_L = L.iloc[:, 0]
 
-        acc[idx,:] = np.array(accuracy)
+        acc[idx, :] = np.array(accuracy)
         idx = idx + 1
 
 
@@ -305,16 +334,3 @@ for i in range(acc.shape[0]):
     plt.ylabel("Accuracy")
     plt.xlabel("Number of instances queries")
     plt.show
-
-
-# In[38]:
-
-
-### SSC
-
-
-not_selected = [i for i in list(range(X_U.shape[0])) if i not in already_selected]
-not_support = [i for i in list(range(X_L.shape[0])) if i not in model.support_]
-np.array(X_U)[not_selected]
-np.array(X_L)[model.support_]
-not_support
