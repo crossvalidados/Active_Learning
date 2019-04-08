@@ -70,9 +70,11 @@ def MS(model, X_U, already_selected, N):
     rank_ind = [i for i in rank_ind if i not in already_selected]
     active_samples = rank_ind[0:N]
 
-    return active_samples
+    return active_samples, distances[active_samples]
 
 def MCLU(model, X_U, already_selected, N):
+
+    distances = []
 
     # Definimos las distancias a cada hiperplano
     distances = abs(model.decision_function(X_U))
@@ -88,7 +90,7 @@ def MCLU(model, X_U, already_selected, N):
     rank_ind = [i for i in rank_ind if i not in already_selected]
     active_samples = rank_ind[0:N]
 
-    return active_samples
+    return active_samples, min_margin[active_samples]
 
 def SSC(model, X_U, already_selected, N):
 
@@ -102,12 +104,14 @@ def SSC(model, X_U, already_selected, N):
     # Si solo hay una clase no es necesaria ninguna predicción.
     if len(np.unique(y_L_ssc)) == 1:
         idx = np.random.permutation(X_U.shape[0])
+        distances = np.ones(X_U.shape[0])
 
     # Si no es el caso, creamos el modelo y predecimos cuales de las muestras sin etiquetar serán vectores soporte.
     else:
         model.fit(X_L_ssc, y_L_ssc)
         possible_SVs = model.predict(X_U)
         idx = np.arange(X_U.shape[0])[possible_SVs == 1]
+        distances = abs(model.decision_function(X_U))
 
     # Comprobamos que no estén ya presentes en la muestra seleccionada.
     rank_ind = [i for i in idx if i not in already_selected]
@@ -115,15 +119,15 @@ def SSC(model, X_U, already_selected, N):
     rank_ind = np.random.permutation(rank_ind)
     active_samples = rank_ind[0:N]
 
-    return active_samples
+    return active_samples, distances[active_samples]
 
 def nEQB(model, X_U, already_selected, N):
+
+    distances = []
 
     # Definimos el número de modelos a usar
     n_models = 4
     n_classes = len(np.unique(y_L))
-
-    distances = []
 
     # Creamos la matriz de predicciones
     n_unlab = X_U.shape[0]
@@ -147,16 +151,17 @@ def nEQB(model, X_U, already_selected, N):
     predMatrix /= n_models
 
     # We already have normalized probabilites, we can compute entropies!
-    Hbag = -np.sum(predMatrix * np.log(predMatrix), axis=1)
+    Hbag = -np.sum(predMatrix * np.log(predMatrix), axis = 1)
 
     # Select randomly among the ones with maximum entropy.
     idx = np.argsort(Hbag)[::-1]
+    distances = Hbag
 
     # Comprobamos que no estén ya presentes en la muestra seleccionada.
     rank_ind = [i for i in idx if i not in already_selected]
     active_samples = rank_ind[0:N]
 
-    return active_samples
+    return active_samples, distances[active_samples]
 
 def random_sampling(model, X_U, already_selected, N):
 
@@ -176,7 +181,7 @@ def random_sampling(model, X_U, already_selected, N):
     return random_samples
 
 
-def diversity_clustering(X_U, already_selected, active_samples, n):
+def diversity_clustering(X_U, distances, active_samples, n):
 
     kmeans = KMeans(n_clusters=n).fit(X_U.iloc[active_samples])
     labels = kmeans.labels_
@@ -190,10 +195,8 @@ def diversity_clustering(X_U, already_selected, active_samples, n):
 
     return diversity_samples
 
-def MAO(X_U, already_selected, active_samples, n):
+def MAO(X_U, distances, active_samples, n):
 
-    distances = []
-    diversity_samples = []
     active = np.array(active_samples)
     labeled = np.array(X_L)
 
@@ -206,9 +209,7 @@ def MAO(X_U, already_selected, active_samples, n):
     # Rellenamos el vector.
     for i in range(n):
 
-        # La primera muestra se toma como activa automáticamente, y de ahí comparamos con el resto. Comprobando que
-        # la muestra en cuestión no se encuentre en las ya seleccionadas (esto es importante después de la primera iteración).
-        # while active[0] not in already_selected:
+        # La primera muestra se toma como activa automáticamente.
         mao_samples[i] = active[0]
         active = active[1:]
 
@@ -225,8 +226,42 @@ def MAO(X_U, already_selected, active_samples, n):
 
     return mao_samples
 
-#### https://github.com/google/active-learning/tree/master/sampling_methods
+def MAO_lam(X_U, distances, active_samples, n):
 
+
+    # MAO lambda: trade-off between uncertainty and diversity
+    lam = 0.6
+
+    active = np.array(active_samples)
+
+    # Usamos un kernel gaussiano para calcular distancias entre las 30 muestras preseleccionadas
+    K = rbf_kernel(X_U, gamma = gamma)
+
+    # Creamos un vector vacío para las posiciones de X_U finales a seleccionar como activas.
+    mao_samples = np.zeros(n, dtype=type(active[0]))
+
+    # Rellenamos el vector.
+    for i in range(n):
+
+        # La primera muestra se toma como activa automáticamente.
+        mao_samples[i] = active[0]
+        active = active[1:]
+        distances = distances[1:]
+
+        # Obtenemos las distancias de las muestras seleccionadas con las preseleccionadas
+        Kdist = K[mao_samples[0:i+1], :][:, active]
+
+        # Distancia mínima de cada muestra preseleccionada con alguna de las seleccionadas.
+        Kdist = Kdist.min(axis = 0)
+
+        # Trade-off between MS and Diversity
+        heuristic = distances * lam + Kdist * (1 - lam)
+        active = active[heuristic.argsort()]  # axis=0
+        distances = distances[heuristic.argsort()]
+
+    mao_samples = mao_samples.tolist()
+
+    return mao_samples
 
 # In[3]:
 
@@ -268,7 +303,7 @@ M = 30 # numero iteraciones. Se acaba con M*n_diver muestras etiquetadas
 n_al = 30 # numero de muestras activa que se seleccionan en cada iteracion
 n_diver = 10 # numero de muestras que se selecionan de las muestras activas a traves de un criterio de diversidad para cada iteracion
 sampling_methods = [MS, MCLU, SSC, nEQB]
-diversity_methods = [diversity_clustering, MAO]
+diversity_methods = [diversity_clustering, MAO, MAO_lam]
 acc = np.empty((len(sampling_methods)*len(diversity_methods), M))
 idx = 0
 
@@ -297,10 +332,10 @@ for j in range(len(sampling_methods)):
             accuracy = accuracy + [accuracy_score(y_pred, y_test)]
 
             # Obtenemos las muestras activas previas a partir de un determinado método de selección.
-            active_samples = sampling_methods[j](model, X_U, already_selected, n_al)
+            active_samples, distances = sampling_methods[j](model, X_U, already_selected, n_al)
 
             # Obtenemos las muestras finales a partir de un determinado método de diversidad.
-            active_samples = diversity_methods[k](X_U, already_selected, active_samples, n_diver)
+            active_samples = diversity_methods[k](X_U, distances, active_samples, n_diver)
 
             # Almacenamos esas muestras activas finales.
             already_selected = already_selected + active_samples
@@ -321,7 +356,7 @@ for j in range(len(sampling_methods)):
 
 # Graficas (naranja es random)
 al = ["MS"]*len(diversity_methods) + ["MCLU"]*len(diversity_methods) + ["SSC"]*len(diversity_methods) + ["nEQB"]*len(diversity_methods)
-diversity = ["Diversity Clustering", "MAO"]*len(sampling_methods)
+diversity = ["Diversity Clustering", "MAO", "MAO_lam"]*len(sampling_methods)
 x = np.arange(M*n_diver, step = 10)
 
 for i in range(acc.shape[0]):
