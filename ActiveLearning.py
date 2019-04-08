@@ -49,10 +49,6 @@ X_L = L.iloc[:,1:]
 y_L = L.iloc[:,0]
 
 
-
-
-already_selected = []
-
 # Definimos la gamma en función de las muestras etiquetadas.
 sigma = np.mean(pdist(X_L))
 gamma = 1 / (2 * sigma * sigma)
@@ -180,7 +176,8 @@ def random_sampling(model, X_U, already_selected, N):
     return random_samples
 
 
-def diversity_clustering(X_U, X_L, active_samples, n):
+def diversity_clustering(X_U, already_selected, active_samples, n):
+
     kmeans = KMeans(n_clusters=n).fit(X_U.iloc[active_samples])
     labels = kmeans.labels_
     diversity_samples = []
@@ -193,7 +190,7 @@ def diversity_clustering(X_U, X_L, active_samples, n):
 
     return diversity_samples
 
-def MAO(X_U, X_L, active_samples, n):
+def MAO(X_U, already_selected, active_samples, n):
 
     distances = []
     diversity_samples = []
@@ -208,8 +205,10 @@ def MAO(X_U, X_L, active_samples, n):
 
     # Rellenamos el vector.
     for i in range(n):
-        i = 0
-        # La primera muestra se toma como activa automáticamente, y de ahí comparamos con el resto.
+
+        # La primera muestra se toma como activa automáticamente, y de ahí comparamos con el resto. Comprobando que
+        # la muestra en cuestión no se encuentre en las ya seleccionadas (esto es importante después de la primera iteración).
+        # while active[0] not in already_selected:
         mao_samples[i] = active[0]
         active = active[1:]
 
@@ -301,7 +300,7 @@ for j in range(len(sampling_methods)):
             active_samples = sampling_methods[j](model, X_U, already_selected, n_al)
 
             # Obtenemos las muestras finales a partir de un determinado método de diversidad.
-            active_samples = diversity_methods[k](X_U, X_L, active_samples, n_diver)
+            active_samples = diversity_methods[k](X_U, already_selected, active_samples, n_diver)
 
             # Almacenamos esas muestras activas finales.
             already_selected = already_selected + active_samples
